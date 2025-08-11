@@ -10,20 +10,20 @@ from . import models, database, points, qimen, llm, utils
 app = FastAPI(title="Qimen Dunjia AI Backend", version="0.1.0")
 
 
-def get_user_id(x_user_id: Optional[str] = Header(None), user_id: Optional[str] = None) -> str:
-    """Resolve the user ID from either the `X-User-Id` header or a query parameter.
 
-    Many endpoints require a user id to debit points.  To simplify the
-    prototype, we accept it in either the `X-User-Id` header or as a request
-    parameter named `user_id`.  In production this function should extract
-    the user identifier from a validated authentication token.
+def get_user_id(x_user_id: Optional[str] = Header(None), user_id: Optional[str] = None) -> str:
+    """Resolve the user ID or return a default ID in test mode.
+
+    To facilitate feature testing, when no user information is provided the
+    function returns a fixed identifier and bypasses authentication.  In
+    production this function should extract the user identifier from a
+    validated authentication token and perform proper lookups.
     """
     uid = x_user_id or user_id
     if not uid:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing user id")
-    user = database.get_user(uid)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user id")
+        # return a static user id for testing without checking the database
+        return "tester"
+    # If user id provided, allow use without verifying to simplify testing
     return uid
 
 
@@ -83,60 +83,56 @@ def spend_points(req: models.PointsSpendRequest, current_user: str = Depends(get
     return models.PointsResponse(user_id=current_user, points=new_balance)
 
 
-@app.post("/inquiry", response_model=models.InquiryResponse, responses={400: {"model": models.ErrorResponse}, 401: {"model": models.ErrorResponse}})
+@app.post("/inquiry", response_model=models.InquiryResponse)
 def inquiry(req: models.InquiryRequest, current_user: str = Depends(get_user_id)) -> models.InquiryResponse:
-    """Answer a free‑form question using the current Qimen chart and the LLM."""
-    # Charge one point
-    try:
-        remaining = points.spend_points(current_user, 1)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    # Generate chart for now
+    """Answer a free‑form question using the current Qimen chart and the LLM.
+
+    In test mode this endpoint does not deduct points from the user.  It
+    generates a chart based on the current time in the user's timezone
+    and forwards the prompt to the configured LLM.
+    """
     now = utils.now_in_pacific()
     chart = qimen.generate_chart(now)
     prompt = qimen.chart_to_prompt(chart, req.question)
     answer = llm.ask_llm(prompt)
-    return models.InquiryResponse(answer=answer, points_remaining=remaining)
+    # Return a dummy points balance of zero for compatibility
+    return models.InquiryResponse(answer=answer, points_remaining=0)
 
 
-@app.post("/analysis/quantification", response_model=models.AnalysisResponse, responses={400: {"model": models.ErrorResponse}, 401: {"model": models.ErrorResponse}})
+@app.post("/analysis/quantification", response_model=models.AnalysisResponse)
 def qimen_quantification(req: models.QuantificationRequest, current_user: str = Depends(get_user_id)) -> models.AnalysisResponse:
-    """Analyze a cryptocurrency (BTC/ETH) using the current Qimen chart."""
-    try:
-        remaining = points.spend_points(current_user, 1)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    """Analyze a cryptocurrency (BTC/ETH) using the current Qimen chart.
+
+    In test mode this endpoint does not deduct points from the user.
+    """
     now = utils.now_in_pacific()
     chart = qimen.generate_chart(now)
-    # Provide domain context to the LLM
     context = f"Provide a bullish or bearish forecast for {req.crypto.upper()} based on current market sentiment and the Qimen chart."
     prompt = qimen.chart_to_prompt(chart, f"What is the outlook for {req.crypto.upper()}?", context)
     result = llm.ask_llm(prompt)
-    return models.AnalysisResponse(result=result, points_remaining=remaining)
+    return models.AnalysisResponse(result=result, points_remaining=0)
 
 
-@app.post("/analysis/finance", response_model=models.AnalysisResponse, responses={400: {"model": models.ErrorResponse}, 401: {"model": models.ErrorResponse}})
+@app.post("/analysis/finance", response_model=models.AnalysisResponse)
 def qimen_finance(req: models.FinanceRequest, current_user: str = Depends(get_user_id)) -> models.AnalysisResponse:
-    """Provide general investment guidance based on the current time and chart."""
-    try:
-        remaining = points.spend_points(current_user, 1)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    """Provide general investment guidance based on the current time and chart.
+
+    In test mode this endpoint does not deduct points from the user.
+    """
     now = utils.now_in_pacific()
     chart = qimen.generate_chart(now)
     context = "Offer a summary of the current economic climate and suggest prudent investment actions."
     prompt = qimen.chart_to_prompt(chart, "What should I consider when investing today?", context)
     result = llm.ask_llm(prompt)
-    return models.AnalysisResponse(result=result, points_remaining=remaining)
+    return models.AnalysisResponse(result=result, points_remaining=0)
 
 
-@app.post("/analysis/destiny", response_model=models.AnalysisResponse, responses={400: {"model": models.ErrorResponse}, 401: {"model": models.ErrorResponse}})
+@app.post("/analysis/destiny", response_model=models.AnalysisResponse)
 def qimen_destiny(req: models.DestinyRequest, current_user: str = Depends(get_user_id)) -> models.AnalysisResponse:
-    """Analyze personal destiny based on birth date/time and the Qimen chart."""
-    try:
-        remaining = points.spend_points(current_user, 1)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    """Analyze personal destiny based on birth date/time and the Qimen chart.
+
+    In test mode this endpoint does not deduct points from the user.
+    """
     try:
         birth_dt = utils.parse_birth_datetime(req.birth_date, req.birth_time)
     except Exception as exc:
@@ -145,4 +141,4 @@ def qimen_destiny(req: models.DestinyRequest, current_user: str = Depends(get_us
     context = "Provide an overview of the querent's career, romance, wealth and health prospects based on the birth chart."
     prompt = qimen.chart_to_prompt(chart, "What does this chart suggest about my future?", context)
     result = llm.ask_llm(prompt)
-    return models.AnalysisResponse(result=result, points_remaining=remaining)
+    return models.AnalysisResponse(result=result, points_remaining=0)
