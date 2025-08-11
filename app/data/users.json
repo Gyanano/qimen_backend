@@ -1,0 +1,30 @@
+{
+  "96c561a5-8f45-4902-a413-4ffd670a11a0": {
+    "id": "96c561a5-8f45-4902-a413-4ffd670a11a0",
+    "email": "test@example.com",
+    "password": "secret123",
+    "points": 36,
+    "last_signin": "2025-08-10"
+  },
+  "d3c4388a-f62d-46a0-8c04-670c7a12a967": {
+    "id": "d3c4388a-f62d-46a0-8c04-670c7a12a967",
+    "email": "bob@example.com",
+    "password": "password",
+    "points": 40,
+    "last_signin": "2025-08-10"
+  },
+  "7c4c6755-16b2-4dbd-9ccd-4d43e093cbff": {
+    "id": "7c4c6755-16b2-4dbd-9ccd-4d43e093cbff",
+    "email": "tmp@example.com",
+    "password": "123456",
+    "points": 40,
+    "last_signin": "2025-08-10"
+  },
+  "c101c07d-93b1-485f-95a8-8e9776c0e219": {
+    "id": "c101c07d-93b1-485f-95a8-8e9776c0e219",
+    "email": "carol@example.com",
+    "password": "password",
+    "points": 35,
+    "last_signin": "2025-08-10"
+  }
+}
